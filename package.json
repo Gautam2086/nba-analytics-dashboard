@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "deploy": "npm install && npm start",
+    "build": "mkdir -p public && cp -r index.html styles.css app.js public/",
     "setup-db": "node scripts/setup-database.js"
   },
   "author": "Gautam Arora",

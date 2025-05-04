@@ -199,60 +199,23 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // In a real application, this would make an API call to execute the query
+        // For security reasons, the backend would need to validate and sanitize the query
+        
+        // Simulate sending query and getting results
         showLoadingIndicator();
         
-        // Make a real API call to execute the query
-        fetch('/api/execute-query', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ query: sqlQuery })
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideLoadingIndicator();
-            if (data.error) {
-                alert('Error: ' + data.error);
-                return;
-            }
-            
-            // Convert the data format to what displayQueryResults expects
-            const formattedResults = data.rows.map(row => {
-                // Extract key properties or create defaults
-                return {
-                    id: row.player_id || row.team_id || row.game_id || row.id || 'N/A',
-                    name: row.full_name || row.team_name || row.name || 'N/A',
-                    team: row.team_abbreviation || row.abbreviation || 'N/A',
-                    position: row.position || 'N/A',
-                    stats: formatStats(row)
-                };
-            });
-            
-            displayQueryResults(formattedResults);
-        })
-        .catch(error => {
-            hideLoadingIndicator();
-            console.error('Error:', error);
-            alert('Error executing query: ' + error.message);
-        });
-    }
-    
-    // Helper function to format stats from row data
-    function formatStats(row) {
-        // Create a formatted string of row data excluding some fields
-        const excludeKeys = ['id', 'player_id', 'team_id', 'game_id', 'full_name', 'team_name', 'name', 'team_abbreviation', 'abbreviation', 'position'];
-        const statsEntries = Object.entries(row).filter(([key]) => !excludeKeys.includes(key));
+        // Sample query results - in a real app these would come from the database
+        const sampleQueryResults = [
+            { id: 201939, name: 'Stephen Curry', team: 'Golden State Warriors', position: 'PG', stats: '30.2 PPG, 5.8 APG' },
+            { id: 2544, name: 'LeBron James', team: 'Los Angeles Lakers', position: 'SF', stats: '27.4 PPG, 8.3 RPG' },
+            { id: 201142, name: 'Kevin Durant', team: 'Phoenix Suns', position: 'SF', stats: '29.1 PPG, 6.7 RPG' }
+        ];
         
-        if (statsEntries.length === 0) {
-            return 'No stats available';
-        }
-        
-        return statsEntries.map(([key, value]) => {
-            // Format the key to be more readable (e.g., pts_home -> PTS Home)
-            const formattedKey = key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-            return `${formattedKey}: ${value}`;
-        }).join(', ');
+        setTimeout(() => {
+            hideLoadingIndicator();
+            displayQueryResults(sampleQueryResults);
+        }, 1500);
     }
     
     // Display query results in the table
@@ -294,7 +257,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// API service for database interactions
+// Simulate an API service for database interactions
+// In a real application, this would make actual HTTP requests to a backend server
 class NBADatabaseService {
     constructor() {
         // Use current location's origin for the API URL to work in both development and production
@@ -303,49 +267,49 @@ class NBADatabaseService {
     }
     
     async getTeams() {
-        try {
-            const response = await fetch(`${this.apiUrl}/teams`);
-            const data = await response.json();
-            return data;
-        } catch (error) {
-            console.error('Error fetching teams:', error);
-            return [];
-        }
+        // Simulated API call
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve([
+                    { team_id: 1610612737, full_name: 'Atlanta Hawks', abbreviation: 'ATL' },
+                    { team_id: 1610612738, full_name: 'Boston Celtics', abbreviation: 'BOS' },
+                    { team_id: 1610612739, full_name: 'Cleveland Cavaliers', abbreviation: 'CLE' }
+                    // More teams would be included here
+                ]);
+            }, 300);
+        });
     }
     
     async getTeamStats(teamId) {
-        try {
-            const response = await fetch(`${this.apiUrl}/team/${teamId}/stats`);
-            const data = await response.json();
-            return data;
-        } catch (error) {
-            console.error('Error fetching team stats:', error);
-            return {
-                team_id: teamId,
-                games_played: 0,
-                wins: 0,
-                losses: 0,
-                points_per_game: 0,
-                assists_per_game: 0,
-                rebounds_per_game: 0
-            };
-        }
+        // Simulated API call
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve({
+                    team_id: teamId,
+                    games_played: 82,
+                    wins: 48,
+                    losses: 34,
+                    points_per_game: 114.2,
+                    assists_per_game: 25.9,
+                    rebounds_per_game: 45.1
+                });
+            }, 500);
+        });
     }
     
     async executeQuery(sqlQuery) {
-        try {
-            const response = await fetch(`${this.apiUrl}/execute-query`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ query: sqlQuery })
-            });
-            const data = await response.json();
-            return data.rows;
-        } catch (error) {
-            console.error('Error executing query:', error);
-            throw error;
-        }
+        // Simulated API call - in a real app this would be sanitized and executed on the server
+        console.log(`Executing query: ${sqlQuery}`);
+        
+        return new Promise(resolve => {
+            setTimeout(() => {
+                // Sample results
+                resolve([
+                    { player_id: 201939, full_name: 'Stephen Curry', team_name: 'Golden State Warriors' },
+                    { player_id: 2544, full_name: 'LeBron James', team_name: 'Los Angeles Lakers' },
+                    { player_id: 201142, full_name: 'Kevin Durant', team_name: 'Phoenix Suns' }
+                ]);
+            }, 800);
+        });
     }
 } 

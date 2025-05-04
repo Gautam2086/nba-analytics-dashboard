@@ -5,23 +5,56 @@ const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
+const fs = require('fs');
 require('dotenv').config(); // Load environment variables from .env file
 
 // Create Express app
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Database configuration using environment variables
+// Ensure the public directory exists
+const publicDir = path.join(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+}
+
+// Check if static files exist in public directory, copy if not
+const filesToCheck = ['index.html', 'styles.css', 'app.js'];
+filesToCheck.forEach(file => {
+  const sourcePath = path.join(__dirname, file);
+  const targetPath = path.join(publicDir, file);
+  
+  if (fs.existsSync(sourcePath) && (!fs.existsSync(targetPath) || 
+      fs.statSync(sourcePath).mtime > fs.statSync(targetPath).mtime)) {
+    try {
+      fs.copyFileSync(sourcePath, targetPath);
+      console.log(`Copied ${file} to public directory`);
+    } catch (err) {
+      console.error(`Error copying ${file}:`, err);
+    }
+  }
+});
+
+// Database configuration using environment variables with fallbacks to ensure connection
 const dbConfig = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  ssl: process.env.DB_SSL === 'true' ? {
-    rejectUnauthorized: false // Needed for some cloud PostgreSQL instances
-  } : false
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'y5XNtw6SISxqJQXt',
+  host: process.env.DB_HOST || 'impurely-accepting-reptile.data-1.use1.tembo.io',
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME || 'postgres',
+  ssl: {
+    rejectUnauthorized: false // Needed for Tembo.io PostgreSQL
+  }
 };
+
+// Log connection attempt (without password)
+console.log('Attempting to connect to database:', {
+  user: dbConfig.user,
+  host: dbConfig.host,
+  port: dbConfig.port,
+  database: dbConfig.database,
+  ssl: !!dbConfig.ssl
+});
 
 // Create a PostgreSQL connection pool
 const pool = new Pool(dbConfig);
