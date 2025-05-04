@@ -192,50 +192,77 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Run custom SQL query
     function runCustomQuery() {
-        const sqlQuery = document.getElementById('sql-query').value.trim();
-        
-        if (!sqlQuery) {
-            alert('Please enter a SQL query');
-            return;
-        }
-        
-        showLoadingIndicator();
-        
-        // Make a real API call to execute the query
-        fetch('/api/execute-query', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ query: sqlQuery })
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideLoadingIndicator();
-            if (data.error) {
-                alert('Error: ' + data.error);
+        try {
+            console.log('runCustomQuery function called');
+            
+            // Check if elements exist
+            const sqlQueryElement = document.getElementById('sql-query');
+            if (!sqlQueryElement) {
+                console.error('SQL query element not found!');
+                alert('Error: SQL query textarea not found');
                 return;
             }
             
-            // Convert the data format to what displayQueryResults expects
-            const formattedResults = data.rows.map(row => {
-                // Extract key properties or create defaults
-                return {
-                    id: row.player_id || row.team_id || row.game_id || row.id || 'N/A',
-                    name: row.full_name || row.team_name || row.name || 'N/A',
-                    team: row.team_abbreviation || row.abbreviation || 'N/A',
-                    position: row.position || 'N/A',
-                    stats: formatStats(row)
-                };
-            });
+            const sqlQuery = sqlQueryElement.value.trim();
+            console.log('Query value retrieved:', sqlQuery);
             
-            displayQueryResults(formattedResults);
-        })
-        .catch(error => {
-            hideLoadingIndicator();
-            console.error('Error:', error);
-            alert('Error executing query: ' + error.message);
-        });
+            if (!sqlQuery) {
+                alert('Please enter a SQL query');
+                return;
+            }
+            
+            console.log('Running query:', sqlQuery);
+            showLoadingIndicator();
+            
+            // Make a real API call to execute the query
+            fetch('/api/execute-query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: sqlQuery })
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('API response:', data);
+                hideLoadingIndicator();
+                if (data.error) {
+                    console.error('Query error:', data.error);
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                
+                console.log('Query returned', data.rows.length, 'rows');
+                
+                // Convert the data format to what displayQueryResults expects
+                const formattedResults = data.rows.map(row => {
+                    // Extract key properties or create defaults
+                    const formattedRow = {
+                        id: row.player_id || row.team_id || row.game_id || row.id || 'N/A',
+                        name: row.full_name || row.team_name || row.name || 'N/A',
+                        team: row.team_abbreviation || row.abbreviation || 'N/A',
+                        position: row.position || 'N/A',
+                        stats: formatStats(row)
+                    };
+                    console.log('Formatted row:', formattedRow);
+                    return formattedRow;
+                });
+                
+                console.log('Displaying', formattedResults.length, 'formatted results');
+                displayQueryResults(formattedResults);
+            })
+            .catch(error => {
+                hideLoadingIndicator();
+                console.error('Error details:', error);
+                alert('Error executing query: ' + error.message);
+            });
+        } catch (error) {
+            console.error('Error in runCustomQuery function:', error);
+            alert('An error occurred while processing the query: ' + error.message);
+        }
     }
     
     // Helper function to format stats from row data
