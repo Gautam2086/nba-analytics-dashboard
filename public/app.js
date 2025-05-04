@@ -192,77 +192,60 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Run custom SQL query
     function runCustomQuery() {
-        try {
-            console.log('runCustomQuery function called');
-            
-            // Check if elements exist
-            const sqlQueryElement = document.getElementById('sql-query');
-            if (!sqlQueryElement) {
-                console.error('SQL query element not found!');
-                alert('Error: SQL query textarea not found');
-                return;
-            }
-            
-            const sqlQuery = sqlQueryElement.value.trim();
-            console.log('Query value retrieved:', sqlQuery);
-            
-            if (!sqlQuery) {
-                alert('Please enter a SQL query');
-                return;
-            }
-            
-            console.log('Running query:', sqlQuery);
-            showLoadingIndicator();
-            
-            // Make a real API call to execute the query
-            fetch('/api/execute-query', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ query: sqlQuery })
-            })
-            .then(response => {
-                console.log('Response status:', response.status);
-                return response.json();
-            })
-            .then(data => {
-                console.log('API response:', data);
-                hideLoadingIndicator();
-                if (data.error) {
-                    console.error('Query error:', data.error);
-                    alert('Error: ' + data.error);
-                    return;
-                }
-                
-                console.log('Query returned', data.rows.length, 'rows');
-                
-                // Convert the data format to what displayQueryResults expects
-                const formattedResults = data.rows.map(row => {
-                    // Extract key properties or create defaults
-                    const formattedRow = {
-                        id: row.player_id || row.team_id || row.game_id || row.id || 'N/A',
-                        name: row.full_name || row.team_name || row.name || 'N/A',
-                        team: row.team_abbreviation || row.abbreviation || 'N/A',
-                        position: row.position || 'N/A',
-                        stats: formatStats(row)
-                    };
-                    console.log('Formatted row:', formattedRow);
-                    return formattedRow;
-                });
-                
-                console.log('Displaying', formattedResults.length, 'formatted results');
-                displayQueryResults(formattedResults);
-            })
-            .catch(error => {
-                hideLoadingIndicator();
-                console.error('Error details:', error);
-                alert('Error executing query: ' + error.message);
-            });
-        } catch (error) {
-            console.error('Error in runCustomQuery function:', error);
-            alert('An error occurred while processing the query: ' + error.message);
+        const sqlQuery = document.getElementById('sql-query').value.trim();
+        
+        if (!sqlQuery) {
+            alert('Please enter a SQL query');
+            return;
         }
+        
+        console.log('Executing query:', sqlQuery);
+        showLoadingIndicator();
+        
+        // Make a real API call to execute the query
+        fetch('/api/execute-query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: sqlQuery })
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            hideLoadingIndicator();
+            console.log('Response data:', data);
+            
+            if (data.error) {
+                console.error('Error from server:', data.error);
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            console.log('Rows returned:', data.rows.length);
+            
+            // Convert the data format to what displayQueryResults expects
+            const formattedResults = data.rows.map(row => {
+                // Extract key properties or create defaults
+                return {
+                    id: row.player_id || row.team_id || row.game_id || row.id || 'N/A',
+                    name: row.full_name || row.team_name || row.name || 'N/A',
+                    team: row.team_abbreviation || row.abbreviation || 'N/A',
+                    position: row.position || 'N/A',
+                    stats: formatStats(row)
+                };
+            });
+            
+            console.log('Formatted results:', formattedResults);
+            displayQueryResults(formattedResults);
+        })
+        .catch(error => {
+            hideLoadingIndicator();
+            console.error('Error in fetch:', error);
+            alert('Error executing query: ' + error.message);
+        });
     }
     
     // Helper function to format stats from row data
@@ -284,15 +267,24 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Display query results in the table
     function displayQueryResults(results) {
+        console.log('displayQueryResults called with:', results);
         const tableBody = document.querySelector('#query-results tbody');
+        if (!tableBody) {
+            console.error('Error: Could not find table body element');
+            return;
+        }
+        
         tableBody.innerHTML = '';
         
         if (results.length === 0) {
+            console.log('No results to display');
             tableBody.innerHTML = '<tr><td colspan="5" class="text-center">No results found</td></tr>';
             return;
         }
         
-        results.forEach(row => {
+        console.log(`Displaying ${results.length} results in table`);
+        
+        results.forEach((row, index) => {
             const tr = document.createElement('tr');
             tr.className = 'highlight-row';
             
@@ -306,6 +298,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             tableBody.appendChild(tr);
         });
+        
+        console.log('Table updated with results');
     }
     
     // Show loading indicator

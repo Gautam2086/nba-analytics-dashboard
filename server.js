@@ -202,27 +202,35 @@ app.get('/api/players/top-scorers', async (req, res) => {
 
 // Execute custom SQL query
 app.post('/api/execute-query', async (req, res) => {
+  console.log('API: Received query execution request');
+  console.log('Request body:', req.body);
+  
   const { query } = req.body;
   
   // Simple validation and protection
   if (!query) {
+    console.log('API: Query is missing');
     return res.status(400).json({ error: 'Query is required' });
   }
   
   // Block dangerous operations - only allow SELECTs
   if (!query.trim().toLowerCase().startsWith('select')) {
+    console.log('API: Non-SELECT query blocked:', query);
     return res.status(403).json({ error: 'Only SELECT queries are allowed' });
   }
   
+  console.log('API: Executing query:', query);
+  
   try {
     const result = await pool.query(query);
+    console.log(`API: Query executed successfully. Rows: ${result.rows.length}, Fields: ${result.fields.length}`);
     res.json({
       rowCount: result.rowCount,
       fields: result.fields.map(f => f.name),
       rows: result.rows
     });
   } catch (err) {
-    console.error('Error executing custom query:', err);
+    console.error('API: Error executing custom query:', err);
     res.status(500).json({ error: 'Error executing query', message: err.message });
   }
 });
