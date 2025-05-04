@@ -219,19 +219,45 @@ app.post('/api/execute-query', async (req, res) => {
     return res.status(403).json({ error: 'Only SELECT queries are allowed' });
   }
   
+  // Check if query is missing schema prefix and warn
+  const queryLower = query.toLowerCase();
+  if (queryLower.includes(' from ') && !queryLower.includes(' from nba.') && !queryLower.includes(' from public.')) {
+    console.warn('API: Query may be missing schema name:', query);
+  }
+  
   console.log('API: Executing query:', query);
   
   try {
+    // First try to manually set the search_path to ensure nba schema is accessible
+    await pool.query('SET search_path TO nba, public');
+    
+    // Then execute the actual query
     const result = await pool.query(query);
-    console.log(`API: Query executed successfully. Rows: ${result.rows.length}, Fields: ${result.fields.length}`);
+    console.log(`API: Query executed successfully. Rows: ${result.rows.length}, Fields: ${result.fields ? result.fields.length : 0}`);
+    
+    // Send a more detailed response
     res.json({
+      success: true,
       rowCount: result.rowCount,
-      fields: result.fields.map(f => f.name),
+      fields: result.fields ? result.fields.map(f => f.name) : [],
       rows: result.rows
     });
   } catch (err) {
     console.error('API: Error executing custom query:', err);
-    res.status(500).json({ error: 'Error executing query', message: err.message });
+    
+    // Provide more detailed error information
+    let errorMessage = err.message;
+    let debugInfo = '';
+    
+    if (err.message.includes('relation') && err.message.includes('does not exist')) {
+      debugInfo = 'The table may not exist or you might need to add the "nba." schema prefix to your table name.';
+    }
+    
+    res.status(500).json({ 
+      error: 'Error executing query', 
+      message: errorMessage,
+      debug: debugInfo
+    });
   }
 });
 

@@ -199,7 +199,23 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        console.log('Executing query:', sqlQuery);
+        // Check if the query includes schema name
+        if (sqlQuery.toLowerCase().includes(' from ') && 
+            !sqlQuery.toLowerCase().includes(' from nba.')) {
+            console.warn('Query missing schema name, automatically adding "nba." prefix');
+            // Try to add the schema name
+            const parts = sqlQuery.split(/\s+from\s+/i);
+            if (parts.length >= 2) {
+                const modifiedQuery = parts[0] + ' FROM nba.' + parts[1];
+                console.log('Modified query:', modifiedQuery);
+                document.getElementById('sql-query').value = modifiedQuery;
+                // Continue with the modified query
+            }
+        }
+        
+        // Get the query again in case it was modified
+        const finalQuery = document.getElementById('sql-query').value.trim();
+        console.log('Executing query:', finalQuery);
         showLoadingIndicator();
         
         // Make a real API call to execute the query
@@ -208,10 +224,13 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ query: sqlQuery })
+            body: JSON.stringify({ query: finalQuery })
         })
         .then(response => {
             console.log('Response status:', response.status);
+            if (!response.ok) {
+                console.error('Server response not OK:', response.status, response.statusText);
+            }
             return response.json();
         })
         .then(data => {
@@ -219,8 +238,14 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Response data:', data);
             
             if (data.error) {
-                console.error('Error from server:', data.error);
-                alert('Error: ' + data.error);
+                console.error('Error from server:', data.error, data.message || '');
+                alert('Error: ' + data.error + (data.message ? '\n' + data.message : ''));
+                return;
+            }
+            
+            if (!data.rows || !Array.isArray(data.rows)) {
+                console.error('Invalid data format:', data);
+                alert('Error: Invalid response format from server');
                 return;
             }
             
