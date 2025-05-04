@@ -38,7 +38,7 @@ filesToCheck.forEach(file => {
 // Database configuration using environment variables with fallbacks to ensure connection
 const dbConfig = {
   user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'y5XNtw6SISxqJQXt',
+  password: process.env.DB_PASSWORD || 'y5XNtw6SlSxqJQXt',
   host: process.env.DB_HOST || 'impurely-accepting-reptile.data-1.use1.tembo.io',
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'postgres',
