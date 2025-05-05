@@ -16,9 +16,7 @@ if (process.env.DATABASE_URL) {
   dbConfig = {
     connectionString: process.env.DATABASE_URL,
     ssl: {
-      rejectUnauthorized: false,
-      // Additional ssl options to handle self-signed certificates
-      checkServerIdentity: () => undefined
+      rejectUnauthorized: false
     }
   };
 } else {
@@ -31,9 +29,7 @@ if (process.env.DATABASE_URL) {
     port: 5432,
     schema: 'nba',
     ssl: {
-      rejectUnauthorized: false,
-      // Additional ssl options to handle self-signed certificates
-      checkServerIdentity: () => undefined
+      rejectUnauthorized: false
     }
   };
 }
@@ -208,10 +204,18 @@ app.post('/api/execute-query', async (req, res) => {
     res.json(response);
   } catch (err) {
     console.error('Error executing custom query:', err);
+    
+    // Check for SSL certificate errors
+    if (err.message && (err.message.includes('self-signed certificate') || err.message.includes('certificate'))) {
+      console.error('SSL Certificate Error:', err.message);
+      console.error('This is likely due to a self-signed certificate in the connection to the database.');
+      console.error('Ensure the SSL configuration is correct in the database connection settings.');
+    }
+    
     res.status(500).json({ 
-      error: 'Error executing query', 
-      message: err.message,
-      success: false
+      success: false,
+      error: 'Error executing query',
+      message: err.message
     });
   }
 });

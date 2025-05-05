@@ -100,7 +100,14 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(error => {
             console.error('Error executing query:', error);
-            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error: ${error.message}</td></tr>`;
+            let errorMessage = error.message;
+            
+            // Provide a more user-friendly message for SSL certificate errors
+            if (errorMessage.includes('self-signed certificate') || errorMessage.includes('certificate')) {
+                errorMessage = 'Database SSL connection error. Please check the server logs for details.';
+            }
+            
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error: ${errorMessage}</td></tr>`;
         });
     }
 });
