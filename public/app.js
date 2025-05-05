@@ -8,7 +8,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Add event listeners
     document.getElementById('apply-filter').addEventListener('click', applyTeamFilter);
-    document.getElementById('run-query').addEventListener('click', runCustomQuery);
+    
+    // Add event listener to Run Query button with debug log
+    const runQueryBtn = document.getElementById('run-query');
+    console.log('Run Query button element:', runQueryBtn);
+    
+    runQueryBtn.addEventListener('click', function(e) {
+        console.log('Run Query button clicked');
+        e.preventDefault(); // Prevent any default form submission
+        runCustomQuery();
+    });
     
     // Initialize the dashboard with default data
     function initializeCharts() {
@@ -192,7 +201,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Run custom SQL query
     function runCustomQuery() {
+        console.log('runCustomQuery function called');
+        
         const sqlQuery = document.getElementById('sql-query').value.trim();
+        console.log('SQL Query:', sqlQuery);
         
         if (!sqlQuery) {
             alert('Please enter a SQL query');
@@ -202,8 +214,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show loading indicator
         showLoadingIndicator();
         
+        console.log('Sending query to server:', sqlQuery);
+        
+        // Get the full URL including hostname
+        const apiUrl = window.location.origin + '/api/execute-query';
+        console.log('API URL:', apiUrl);
+        
         // Send the query to the server
-        fetch('/api/execute-query', {
+        fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -211,12 +229,14 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({ query: sqlQuery })
         })
         .then(response => {
+            console.log('Response status:', response.status);
             if (!response.ok) {
                 throw new Error('Network response was not ok');
             }
             return response.json();
         })
         .then(data => {
+            console.log('Query result data:', data);
             hideLoadingIndicator();
             
             if (data.error) {
@@ -236,13 +256,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Create a generic object that matches the table structure
                 return {
                     id: row.player_id || row.team_id || row.game_id || Object.values(row)[0] || 'N/A',
-                    name: row.full_name || row.first_name + ' ' + row.last_name || Object.values(row)[1] || 'N/A',
+                    name: row.full_name || (row.first_name && row.last_name ? row.first_name + ' ' + row.last_name : '') || Object.values(row)[1] || 'N/A',
                     team: row.team_name || row.abbreviation || Object.values(row)[2] || 'N/A',
                     position: row.position || Object.values(row)[3] || 'N/A',
                     stats: formatStats(row)
                 };
             });
             
+            console.log('Processed results:', results);
             displayQueryResults(results);
             
             // If we have results, also render a chart
@@ -251,8 +272,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
+            console.error('Error executing query:', error);
             hideLoadingIndicator();
-            console.error('Error:', error);
             alert('Error executing query: ' + error.message);
         });
     }
@@ -340,6 +361,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Display query results in the table
     function displayQueryResults(results) {
+        console.log('Displaying query results in table:', results);
+        
         const tableBody = document.querySelector('#query-results tbody');
         tableBody.innerHTML = '';
         
@@ -366,6 +389,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Show loading indicator
     function showLoadingIndicator() {
+        console.log('Showing loading indicator');
+        
+        // Get the specific card-body for the query section
+        const queryCardBody = document.querySelector('.card-header.bg-secondary').nextElementSibling;
+        console.log('Query card body element:', queryCardBody);
+        
         // Create a loading indicator if it doesn't exist
         let loadingIndicator = document.getElementById('loading-indicator');
         if (!loadingIndicator) {
@@ -376,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="loading-spinner"></div>
                 <p>Executing query...</p>
             `;
-            document.querySelector('.card-body').appendChild(loadingIndicator);
+            queryCardBody.appendChild(loadingIndicator);
         }
         
         loadingIndicator.style.display = 'block';
@@ -384,6 +413,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Hide loading indicator
     function hideLoadingIndicator() {
+        console.log('Hiding loading indicator');
+        
         const loadingIndicator = document.getElementById('loading-indicator');
         if (loadingIndicator) {
             loadingIndicator.style.display = 'none';
