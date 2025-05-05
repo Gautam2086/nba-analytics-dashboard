@@ -19,27 +19,39 @@ let dbConfig;
 
 // Check if DATABASE_URL environment variable exists (for deployment)
 if (process.env.DATABASE_URL) {
-  let connectionString = process.env.DATABASE_URL;
+  // For render.com deployment - use the simplest possible configuration
+  console.log('Using DATABASE_URL for connection');
   
-  // If the connection string includes sslmode=require, replace it with sslmode=no-verify
-  if (connectionString.includes('sslmode=require')) {
-    connectionString = connectionString.replace('sslmode=require', 'sslmode=no-verify');
-    console.log('Modified DATABASE_URL to use sslmode=no-verify instead of sslmode=require');
-  } else if (!connectionString.includes('sslmode=')) {
-    // If no sslmode is specified, add sslmode=no-verify
-    connectionString += connectionString.includes('?') ? '&sslmode=no-verify' : '?sslmode=no-verify';
-    console.log('Added sslmode=no-verify to DATABASE_URL');
+  // Parse the connection string to extract components
+  const connectionString = process.env.DATABASE_URL;
+  const match = connectionString.match(/postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+  
+  if (match) {
+    const [, user, password, host, port, database] = match;
+    
+    // Use direct configuration instead of connection string
+    dbConfig = {
+      user,
+      password,
+      host,
+      port: parseInt(port, 10),
+      database: database.split('?')[0], // Remove query parameters
+      ssl: {
+        rejectUnauthorized: false
+      }
+    };
+    
+    console.log('Parsed DATABASE_URL into direct configuration (password redacted)');
+  } else {
+    // Fallback to connection string if parsing fails
+    dbConfig = {
+      connectionString,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    };
+    console.log('Using connection string directly with SSL disabled');
   }
-  
-  console.log('Using DATABASE_URL environment variable with modified SSL settings');
-  
-  // Use a basic connection with only essential options
-  dbConfig = {
-    connectionString,
-    ssl: {
-      rejectUnauthorized: false // This is the key setting to solve SSL issues
-    }
-  };
 } else {
   // Local database configuration using remote Tembo.io database
   console.log('Using local database configuration');
@@ -56,24 +68,41 @@ if (process.env.DATABASE_URL) {
   };
 }
 
-console.log('Database configuration (without password):', {
-  ...dbConfig,
-  password: dbConfig.password ? '[REDACTED]' : undefined
+console.log('Database configuration (without sensitive data):', {
+  host: dbConfig.host || 'from connection string',
+  database: dbConfig.database || 'from connection string',
+  ssl: !!dbConfig.ssl
 });
 
-// Create a PostgreSQL connection pool
-const pool = new Pool(dbConfig);
+// Create a PostgreSQL connection pool with a limited number of clients
+const pool = new Pool({
+  ...dbConfig,
+  max: 10, // Maximum number of clients in the pool
+  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+  connectionTimeoutMillis: 10000 // Return an error after 10 seconds if connection not established
+});
 
 // Connection error handler
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  // Don't crash the server on connection errors
+  console.error('Database connection error occurred, but server will continue running');
 });
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname)));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve index.html for all routes to support client-side routing
+app.get('*', (req, res, next) => {
+  // Skip API routes
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // Health check endpoint for deployment platforms
 app.get('/api/health', (req, res) => {
@@ -235,23 +264,46 @@ app.post('/api/execute-query', async (req, res) => {
     return res.status(403).json({ error: 'Only SELECT queries are allowed' });
   }
   
+  let client;
   try {
     console.log('Executing query:', query);
-    // Create a new client for this query to ensure clean state
-    const client = await pool.connect();
-    let result;
     
+    // Get a client from the pool with a timeout
     try {
-      result = await client.query(query);
-      console.log('Query result:', { 
-        rowCount: result.rowCount, 
-        fields: result.fields ? result.fields.map(f => f.name) : [] 
+      client = await pool.connect();
+    } catch (connErr) {
+      console.error('Failed to get database client:', connErr.message);
+      return res.status(500).json({
+        error: 'Database connection error',
+        message: 'Could not connect to the database. Please try again later.',
+        success: false
       });
-    } finally {
-      // Always release the client back to the pool
-      client.release();
     }
     
+    // Execute the query with a timeout
+    let result;
+    try {
+      // Set a query timeout of 10 seconds
+      result = await Promise.race([
+        client.query(query),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
+        )
+      ]);
+      
+      console.log('Query executed successfully with', result.rowCount, 'rows');
+    } catch (queryErr) {
+      console.error('Query execution error:', queryErr.message);
+      throw queryErr; // Re-throw to be caught by the outer catch
+    } finally {
+      // Always release the client back to the pool
+      if (client) {
+        client.release();
+        console.log('Database client released back to pool');
+      }
+    }
+    
+    // Send the successful response
     res.json({
       success: true,
       rowCount: result.rowCount,
@@ -269,15 +321,24 @@ app.post('/api/execute-query', async (req, res) => {
       err.message.includes('EOF')
     )) {
       console.error('SSL Certificate Error. This is likely due to SSL configuration issues.');
-      console.error('Try updating the DATABASE_URL in render.com to use sslmode=no-verify');
       
       return res.status(500).json({ 
         error: 'Database SSL connection error', 
-        message: 'Could not establish a secure connection to the database. Please check server logs.',
+        message: 'Could not establish a secure connection to the database. Please try again later.',
         success: false
       });
     }
     
+    // Handle timeout errors
+    if (err.message && err.message.includes('timeout')) {
+      return res.status(504).json({
+        error: 'Query timeout',
+        message: 'The query took too long to execute. Please try a simpler query.',
+        success: false
+      });
+    }
+    
+    // General error response
     res.status(500).json({ 
       error: 'Error executing query', 
       message: err.message,
