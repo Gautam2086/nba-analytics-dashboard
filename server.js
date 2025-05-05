@@ -15,7 +15,11 @@ let dbConfig;
 if (process.env.DATABASE_URL) {
   dbConfig = {
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: {
+      rejectUnauthorized: false,
+      // Additional ssl options to handle self-signed certificates
+      checkServerIdentity: () => undefined
+    }
   };
 } else {
   // Local database configuration using remote Tembo.io database
@@ -26,7 +30,11 @@ if (process.env.DATABASE_URL) {
     password: 'y5XNtw6SlSxqJQXt',
     port: 5432,
     schema: 'nba',
-    ssl: { rejectUnauthorized: false } // Add SSL configuration for remote database
+    ssl: {
+      rejectUnauthorized: false,
+      // Additional ssl options to handle self-signed certificates
+      checkServerIdentity: () => undefined
+    }
   };
 }
 

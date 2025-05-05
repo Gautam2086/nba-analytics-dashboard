@@ -11,7 +11,11 @@ const dbConfig = {
   password: 'y5XNtw6SlSxqJQXt',
   port: 5432,
   schema: 'nba',
-  ssl: { rejectUnauthorized: false } // Add SSL configuration for remote database
+  ssl: {
+    rejectUnauthorized: false,
+    // Additional ssl options to handle self-signed certificates
+    checkServerIdentity: () => undefined
+  }
 };
 
 // Create a PostgreSQL connection pool
