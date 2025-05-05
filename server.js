@@ -176,26 +176,34 @@ app.get('/api/players/top-scorers', async (req, res) => {
 app.post('/api/execute-query', async (req, res) => {
   const { query } = req.body;
   
-  // Simple validation and protection
+  // Simple validation
   if (!query) {
     return res.status(400).json({ error: 'Query is required' });
   }
   
-  // Block dangerous operations - only allow SELECTs
+  // For security, restrict to only SELECT queries
   if (!query.trim().toLowerCase().startsWith('select')) {
     return res.status(403).json({ error: 'Only SELECT queries are allowed' });
   }
   
   try {
+    console.log('Executing query:', query);
     const result = await pool.query(query);
+    console.log('Query result:', { rowCount: result.rowCount, fields: result.fields.map(f => f.name) });
+    
     res.json({
+      success: true,
       rowCount: result.rowCount,
       fields: result.fields.map(f => f.name),
       rows: result.rows
     });
   } catch (err) {
     console.error('Error executing custom query:', err);
-    res.status(500).json({ error: 'Error executing query', message: err.message });
+    res.status(500).json({ 
+      error: 'Error executing query', 
+      message: err.message,
+      success: false
+    });
   }
 });
 

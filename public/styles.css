@@ -87,6 +87,10 @@ footer {
     display: none;
     text-align: center;
     padding: 20px;
+    margin-top: 20px;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .loading-spinner {
@@ -97,6 +101,7 @@ footer {
     height: 40px;
     animation: spin 1s linear infinite;
     margin: 0 auto;
+    margin-bottom: 10px;
 }
 
 @keyframes spin {
@@ -108,4 +113,30 @@ footer {
 .highlight-row:hover {
     background-color: #f0f8ff;
     cursor: pointer;
+}
+
+/* Query result chart */
+#query-result-chart {
+    margin-top: 30px;
+    margin-bottom: 20px;
+    padding: 10px;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+/* Improve SQL query textarea */
+#sql-query {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #333;
+    background-color: #f9f9f9;
+    border-color: #ddd;
+}
+
+#sql-query:focus {
+    background-color: #fff;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 } 

@@ -199,23 +199,143 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // In a real application, this would make an API call to execute the query
-        // For security reasons, the backend would need to validate and sanitize the query
-        
-        // Simulate sending query and getting results
+        // Show loading indicator
         showLoadingIndicator();
         
-        // Sample query results - in a real app these would come from the database
-        const sampleQueryResults = [
-            { id: 201939, name: 'Stephen Curry', team: 'Golden State Warriors', position: 'PG', stats: '30.2 PPG, 5.8 APG' },
-            { id: 2544, name: 'LeBron James', team: 'Los Angeles Lakers', position: 'SF', stats: '27.4 PPG, 8.3 RPG' },
-            { id: 201142, name: 'Kevin Durant', team: 'Phoenix Suns', position: 'SF', stats: '29.1 PPG, 6.7 RPG' }
-        ];
-        
-        setTimeout(() => {
+        // Send the query to the server
+        fetch('/api/execute-query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ query: sqlQuery })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
             hideLoadingIndicator();
-            displayQueryResults(sampleQueryResults);
-        }, 1500);
+            
+            if (data.error) {
+                // Handle error
+                alert('Error executing query: ' + data.message);
+                return;
+            }
+            
+            if (data.rowCount === 0) {
+                // No results
+                displayQueryResults([]);
+                return;
+            }
+            
+            // Process the results into a format for the table
+            const results = data.rows.map(row => {
+                // Create a generic object that matches the table structure
+                return {
+                    id: row.player_id || row.team_id || row.game_id || Object.values(row)[0] || 'N/A',
+                    name: row.full_name || row.first_name + ' ' + row.last_name || Object.values(row)[1] || 'N/A',
+                    team: row.team_name || row.abbreviation || Object.values(row)[2] || 'N/A',
+                    position: row.position || Object.values(row)[3] || 'N/A',
+                    stats: formatStats(row)
+                };
+            });
+            
+            displayQueryResults(results);
+            
+            // If we have results, also render a chart
+            if (results.length > 0 && results.length < 20) {
+                renderQueryResultChart(data.rows);
+            }
+        })
+        .catch(error => {
+            hideLoadingIndicator();
+            console.error('Error:', error);
+            alert('Error executing query: ' + error.message);
+        });
+    }
+    
+    // Format stats object for display
+    function formatStats(row) {
+        // Look for common stat fields
+        const statFields = ['pts', 'reb', 'ast', 'stl', 'blk', 'avg_points', 'avg_rebounds', 'avg_assists'];
+        
+        // Get stats that exist in the row
+        const stats = statFields
+            .filter(field => row[field] !== undefined)
+            .map(field => `${field.replace('avg_', '')}: ${row[field]}`)
+            .join(', ');
+        
+        return stats || 'N/A';
+    }
+    
+    // Render a chart from query results if possible
+    function renderQueryResultChart(data) {
+        // This is a simple implementation - in a real app, you would analyze the data
+        // to determine the best chart type
+        
+        // For simplicity, we'll just check if there are numeric fields we can chart
+        const numericFields = [];
+        const sampleRow = data[0];
+        
+        // Find numeric fields
+        Object.keys(sampleRow).forEach(key => {
+            if (typeof sampleRow[key] === 'number') {
+                numericFields.push(key);
+            }
+        });
+        
+        if (numericFields.length === 0) {
+            return; // No numeric fields to chart
+        }
+        
+        // Use the first string field as labels
+        let labelField = Object.keys(sampleRow).find(key => typeof sampleRow[key] === 'string');
+        if (!labelField) {
+            labelField = Object.keys(sampleRow)[0]; // Fallback to first field
+        }
+        
+        // Create a simple bar chart with the first numeric field
+        const chartField = numericFields[0];
+        
+        // Get container to place the chart
+        const resultsSection = document.querySelector('.card-body');
+        
+        // Create canvas for the chart if it doesn't exist
+        let chartCanvas = document.getElementById('query-result-chart');
+        if (!chartCanvas) {
+            chartCanvas = document.createElement('canvas');
+            chartCanvas.id = 'query-result-chart';
+            chartCanvas.style.marginTop = '20px';
+            chartCanvas.style.maxHeight = '300px';
+            resultsSection.appendChild(chartCanvas);
+        }
+        
+        // Create chart
+        new Chart(chartCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: data.map(row => row[labelField]),
+                datasets: [{
+                    label: chartField,
+                    data: data.map(row => row[chartField]),
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
     }
     
     // Display query results in the table
@@ -246,14 +366,28 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Show loading indicator
     function showLoadingIndicator() {
-        // This would typically show a spinner or loading message
-        console.log('Loading data...');
+        // Create a loading indicator if it doesn't exist
+        let loadingIndicator = document.getElementById('loading-indicator');
+        if (!loadingIndicator) {
+            loadingIndicator = document.createElement('div');
+            loadingIndicator.id = 'loading-indicator';
+            loadingIndicator.className = 'loading';
+            loadingIndicator.innerHTML = `
+                <div class="loading-spinner"></div>
+                <p>Executing query...</p>
+            `;
+            document.querySelector('.card-body').appendChild(loadingIndicator);
+        }
+        
+        loadingIndicator.style.display = 'block';
     }
     
     // Hide loading indicator
     function hideLoadingIndicator() {
-        // This would typically hide the spinner or loading message
-        console.log('Data loaded.');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
     }
 });
 
