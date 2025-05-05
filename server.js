@@ -3,73 +3,45 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 const cors = require('cors');
-const helmet = require('helmet');
-const compression = require('compression');
-const fs = require('fs');
-require('dotenv').config(); // Load environment variables from .env file
 
 // Create Express app
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Ensure the public directory exists
-const publicDir = path.join(__dirname, 'public');
-if (!fs.existsSync(publicDir)) {
-  fs.mkdirSync(publicDir, { recursive: true });
+// Database configuration
+let dbConfig;
+
+// Check if DATABASE_URL environment variable exists (for deployment)
+if (process.env.DATABASE_URL) {
+  dbConfig = {
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  };
+} else {
+  // Local database configuration using remote Tembo.io database
+  dbConfig = {
+    user: 'postgres',
+    host: 'impurely-accepting-reptile.data-1.use1.tembo.io',
+    database: 'postgres',
+    password: 'y5XNtw6SlSxqJQXt',
+    port: 5432,
+    schema: 'nba',
+    ssl: { rejectUnauthorized: false } // Add SSL configuration for remote database
+  };
 }
-
-// Check if static files exist in public directory, copy if not
-const filesToCheck = ['index.html', 'styles.css', 'app.js'];
-filesToCheck.forEach(file => {
-  const sourcePath = path.join(__dirname, file);
-  const targetPath = path.join(publicDir, file);
-  
-  if (fs.existsSync(sourcePath) && (!fs.existsSync(targetPath) || 
-      fs.statSync(sourcePath).mtime > fs.statSync(targetPath).mtime)) {
-    try {
-      fs.copyFileSync(sourcePath, targetPath);
-      console.log(`Copied ${file} to public directory`);
-    } catch (err) {
-      console.error(`Error copying ${file}:`, err);
-    }
-  }
-});
-
-// Database configuration using environment variables with fallbacks to ensure connection
-const dbConfig = {
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'y5XNtw6SlSxqJQXt',
-  host: process.env.DB_HOST || 'impurely-accepting-reptile.data-1.use1.tembo.io',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'postgres',
-  ssl: {
-    rejectUnauthorized: false // Needed for Tembo.io PostgreSQL
-  }
-};
-
-// Log connection attempt (without password)
-console.log('Attempting to connect to database:', {
-  user: dbConfig.user,
-  host: dbConfig.host,
-  port: dbConfig.port,
-  database: dbConfig.database,
-  ssl: !!dbConfig.ssl
-});
 
 // Create a PostgreSQL connection pool
 const pool = new Pool(dbConfig);
 
-// Set schema to use for all queries
-pool.on('connect', (client) => {
-  client.query('SET search_path TO nba, public');
-});
-
-// Enhanced middleware for production
-app.use(helmet()); // Security headers
-app.use(compression()); // Compress responses
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Health check endpoint for deployment platforms
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 // Test database connection
 pool.query('SELECT NOW()', (err, res) => {
@@ -77,14 +49,6 @@ pool.query('SELECT NOW()', (err, res) => {
     console.error('Database connection error:', err.stack);
   } else {
     console.log('Database connected:', res.rows[0]);
-    // Verify NBA tables exist
-    pool.query('SELECT COUNT(*) FROM nba.team', (err, result) => {
-      if (err) {
-        console.error('Error accessing NBA schema:', err.message);
-      } else {
-        console.log(`Database verified: ${result.rows[0].count} teams found`);
-      }
-    });
   }
 });
 
@@ -93,11 +57,11 @@ pool.query('SELECT NOW()', (err, res) => {
 // Get all teams
 app.get('/api/teams', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM team ORDER BY full_name');
+    const result = await pool.query('SELECT * FROM nba.team ORDER BY full_name');
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching teams:', err);
-    res.status(500).json({ error: 'Error fetching teams', details: err.message });
+    res.status(500).json({ error: 'Error fetching teams' });
   }
 });
 
@@ -115,7 +79,7 @@ app.get('/api/team/:teamId/stats', async (req, res) => {
         COUNT(*) as games_played,
         SUM(CASE WHEN wl_home = 'W' THEN 1 ELSE 0 END) as wins,
         SUM(CASE WHEN wl_home = 'L' THEN 1 ELSE 0 END) as losses
-      FROM game
+      FROM nba.game
       WHERE team_id_home = $1
     `;
     
@@ -128,7 +92,7 @@ app.get('/api/team/:teamId/stats', async (req, res) => {
         COUNT(*) as games_played,
         SUM(CASE WHEN wl_away = 'W' THEN 1 ELSE 0 END) as wins,
         SUM(CASE WHEN wl_away = 'L' THEN 1 ELSE 0 END) as losses
-      FROM game
+      FROM nba.game
       WHERE team_id_away = $1
     `;
     
@@ -165,7 +129,7 @@ app.get('/api/team/:teamId/stats', async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching team stats:', err);
-    res.status(500).json({ error: 'Error fetching team stats', details: err.message });
+    res.status(500).json({ error: 'Error fetching team stats' });
   }
 });
 
@@ -202,62 +166,28 @@ app.get('/api/players/top-scorers', async (req, res) => {
 
 // Execute custom SQL query
 app.post('/api/execute-query', async (req, res) => {
-  console.log('API: Received query execution request');
-  console.log('Request body:', req.body);
-  
   const { query } = req.body;
   
   // Simple validation and protection
   if (!query) {
-    console.log('API: Query is missing');
     return res.status(400).json({ error: 'Query is required' });
   }
   
   // Block dangerous operations - only allow SELECTs
   if (!query.trim().toLowerCase().startsWith('select')) {
-    console.log('API: Non-SELECT query blocked:', query);
     return res.status(403).json({ error: 'Only SELECT queries are allowed' });
   }
   
-  // Check if query is missing schema prefix and warn
-  const queryLower = query.toLowerCase();
-  if (queryLower.includes(' from ') && !queryLower.includes(' from nba.') && !queryLower.includes(' from public.')) {
-    console.warn('API: Query may be missing schema name:', query);
-  }
-  
-  console.log('API: Executing query:', query);
-  
   try {
-    // First try to manually set the search_path to ensure nba schema is accessible
-    await pool.query('SET search_path TO nba, public');
-    
-    // Then execute the actual query
     const result = await pool.query(query);
-    console.log(`API: Query executed successfully. Rows: ${result.rows.length}, Fields: ${result.fields ? result.fields.length : 0}`);
-    
-    // Send a more detailed response
     res.json({
-      success: true,
       rowCount: result.rowCount,
-      fields: result.fields ? result.fields.map(f => f.name) : [],
+      fields: result.fields.map(f => f.name),
       rows: result.rows
     });
   } catch (err) {
-    console.error('API: Error executing custom query:', err);
-    
-    // Provide more detailed error information
-    let errorMessage = err.message;
-    let debugInfo = '';
-    
-    if (err.message.includes('relation') && err.message.includes('does not exist')) {
-      debugInfo = 'The table may not exist or you might need to add the "nba." schema prefix to your table name.';
-    }
-    
-    res.status(500).json({ 
-      error: 'Error executing query', 
-      message: errorMessage,
-      debug: debugInfo
-    });
+    console.error('Error executing custom query:', err);
+    res.status(500).json({ error: 'Error executing query', message: err.message });
   }
 });
 

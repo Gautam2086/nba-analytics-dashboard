@@ -261,9 +261,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // In a real application, this would make actual HTTP requests to a backend server
 class NBADatabaseService {
     constructor() {
-        // Use current location's origin for the API URL to work in both development and production
-        this.apiUrl = '/api';
-        console.log('API URL configured:', this.apiUrl);
+        this.apiUrl = '/api'; // This would be the actual API endpoint
     }
     
     async getTeams() {
