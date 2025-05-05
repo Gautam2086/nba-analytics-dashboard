@@ -199,46 +199,70 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // In a real application, this would make an API call to execute the query
-        // For security reasons, the backend would need to validate and sanitize the query
-        
-        // Simulate sending query and getting results
+        // Show loading indicator
         showLoadingIndicator();
         
-        // Sample query results - in a real app these would come from the database
-        const sampleQueryResults = [
-            { id: 201939, name: 'Stephen Curry', team: 'Golden State Warriors', position: 'PG', stats: '30.2 PPG, 5.8 APG' },
-            { id: 2544, name: 'LeBron James', team: 'Los Angeles Lakers', position: 'SF', stats: '27.4 PPG, 8.3 RPG' },
-            { id: 201142, name: 'Kevin Durant', team: 'Phoenix Suns', position: 'SF', stats: '29.1 PPG, 6.7 RPG' }
-        ];
-        
-        setTimeout(() => {
+        // Make an actual API call to execute the query
+        fetch('/api/execute-query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: sqlQuery })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
             hideLoadingIndicator();
-            displayQueryResults(sampleQueryResults);
-        }, 1500);
+            if (data.success) {
+                displayQueryResults(data);
+            } else {
+                alert('Error executing query: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            hideLoadingIndicator();
+            console.error('Error executing query:', error);
+            alert('Error executing query: ' + error.message);
+        });
     }
     
     // Display query results in the table
-    function displayQueryResults(results) {
+    function displayQueryResults(data) {
         const tableBody = document.querySelector('#query-results tbody');
-        tableBody.innerHTML = '';
+        const tableHead = document.querySelector('#query-results thead tr');
         
-        if (results.length === 0) {
+        // Clear previous results
+        tableBody.innerHTML = '';
+        tableHead.innerHTML = '';
+        
+        if (!data.rows || data.rows.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="5" class="text-center">No results found</td></tr>';
             return;
         }
         
-        results.forEach(row => {
+        // Create table headers based on the fields returned
+        data.fields.forEach(field => {
+            const th = document.createElement('th');
+            th.textContent = field;
+            tableHead.appendChild(th);
+        });
+        
+        // Add rows to the table
+        data.rows.forEach(row => {
             const tr = document.createElement('tr');
             tr.className = 'highlight-row';
             
-            tr.innerHTML = `
-                <td>${row.id}</td>
-                <td>${row.name}</td>
-                <td>${row.team}</td>
-                <td>${row.position}</td>
-                <td>${row.stats}</td>
-            `;
+            // Add each field in the row
+            data.fields.forEach(field => {
+                const td = document.createElement('td');
+                td.textContent = row[field] !== null ? row[field] : '';
+                tr.appendChild(td);
+            });
             
             tableBody.appendChild(tr);
         });
