@@ -44,6 +44,7 @@ const pool = new Pool(dbConfig);
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname)); // Serve files from the root directory
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Health check endpoint for deployment platforms
@@ -174,15 +175,20 @@ app.get('/api/players/top-scorers', async (req, res) => {
 
 // Execute custom SQL query
 app.post('/api/execute-query', async (req, res) => {
+  console.log('API endpoint hit: /api/execute-query');
+  console.log('Request body:', req.body);
+  
   const { query } = req.body;
   
   // Simple validation
   if (!query) {
+    console.log('Error: Query is required');
     return res.status(400).json({ error: 'Query is required' });
   }
   
   // For security, restrict to only SELECT queries
   if (!query.trim().toLowerCase().startsWith('select')) {
+    console.log('Error: Only SELECT queries are allowed');
     return res.status(403).json({ error: 'Only SELECT queries are allowed' });
   }
   
@@ -191,12 +197,15 @@ app.post('/api/execute-query', async (req, res) => {
     const result = await pool.query(query);
     console.log('Query result:', { rowCount: result.rowCount, fields: result.fields.map(f => f.name) });
     
-    res.json({
+    const response = {
       success: true,
       rowCount: result.rowCount,
       fields: result.fields.map(f => f.name),
       rows: result.rows
-    });
+    };
+    
+    console.log('Sending response:', JSON.stringify(response).substring(0, 200) + '...');
+    res.json(response);
   } catch (err) {
     console.error('Error executing custom query:', err);
     res.status(500).json({ 

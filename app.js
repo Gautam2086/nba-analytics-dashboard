@@ -8,7 +8,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Add event listeners
     document.getElementById('apply-filter').addEventListener('click', applyTeamFilter);
-    document.getElementById('run-query').addEventListener('click', runCustomQuery);
+    
+    // Query execution functionality
+    const runQueryButton = document.getElementById('run-query');
+    if (runQueryButton) {
+        runQueryButton.addEventListener('click', function() {
+            executeQuery();
+        });
+    }
     
     // Initialize the dashboard with default data
     function initializeCharts() {
@@ -190,19 +197,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 1500);
     }
     
-    // Run custom SQL query
-    function runCustomQuery() {
-        const sqlQuery = document.getElementById('sql-query').value.trim();
+    function executeQuery() {
+        const sqlQueryElement = document.getElementById('sql-query');
+        const sqlQuery = sqlQueryElement ? sqlQueryElement.value.trim() : '';
         
         if (!sqlQuery) {
             alert('Please enter a SQL query');
             return;
         }
         
-        // Show loading indicator
-        showLoadingIndicator();
+        // Show loading state
+        const resultsTable = document.getElementById('query-results');
+        const tableBody = resultsTable.querySelector('tbody');
+        tableBody.innerHTML = '<tr><td colspan="5" class="text-center">Loading results...</td></tr>';
         
-        // Make an actual API call to execute the query
+        // Execute the query
         fetch('/api/execute-query', {
             method: 'POST',
             headers: {
@@ -212,59 +221,44 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => {
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                throw new Error(`Server responded with status: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
-            hideLoadingIndicator();
-            if (data.success) {
-                displayQueryResults(data);
-            } else {
-                alert('Error executing query: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(error => {
-            hideLoadingIndicator();
-            console.error('Error executing query:', error);
-            alert('Error executing query: ' + error.message);
-        });
-    }
-    
-    // Display query results in the table
-    function displayQueryResults(data) {
-        const tableBody = document.querySelector('#query-results tbody');
-        const tableHead = document.querySelector('#query-results thead tr');
-        
-        // Clear previous results
-        tableBody.innerHTML = '';
-        tableHead.innerHTML = '';
-        
-        if (!data.rows || data.rows.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="5" class="text-center">No results found</td></tr>';
-            return;
-        }
-        
-        // Create table headers based on the fields returned
-        data.fields.forEach(field => {
-            const th = document.createElement('th');
-            th.textContent = field;
-            tableHead.appendChild(th);
-        });
-        
-        // Add rows to the table
-        data.rows.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.className = 'highlight-row';
+            // Clear the table
+            const tableHead = resultsTable.querySelector('thead tr');
+            tableHead.innerHTML = '';
+            tableBody.innerHTML = '';
             
-            // Add each field in the row
+            if (!data.rows || data.rows.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="text-center">No results found</td></tr>';
+                return;
+            }
+            
+            // Add headers
             data.fields.forEach(field => {
-                const td = document.createElement('td');
-                td.textContent = row[field] !== null ? row[field] : '';
-                tr.appendChild(td);
+                const th = document.createElement('th');
+                th.textContent = field;
+                tableHead.appendChild(th);
             });
             
-            tableBody.appendChild(tr);
+            // Add rows
+            data.rows.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                data.fields.forEach(field => {
+                    const td = document.createElement('td');
+                    td.textContent = row[field] !== null ? row[field] : '';
+                    tr.appendChild(td);
+                });
+                
+                tableBody.appendChild(tr);
+            });
+        })
+        .catch(error => {
+            console.error('Error executing query:', error);
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error: ${error.message}</td></tr>`;
         });
     }
     
