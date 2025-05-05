@@ -3,7 +3,7 @@ services:
     name: nba-analytics-dashboard
     env: node
     buildCommand: npm install
-    startCommand: node server.js
+    startCommand: npm run render-start
     envVars:
       - key: PORT
         value: 10000
@@ -11,4 +11,4 @@ services:
         sync: false
       - key: NODE_ENV
         value: production
-    healthCheckPath: /api/health 
+    healthCheckPath: /api/health

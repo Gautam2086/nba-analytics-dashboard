@@ -13,12 +13,12 @@ let dbConfig;
 
 // Check if DATABASE_URL environment variable exists (for deployment)
 if (process.env.DATABASE_URL) {
+  // For Render.com deployment
   dbConfig = {
     connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false
-    }
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
   };
+  console.log('Using DATABASE_URL for connection with SSL:', !!dbConfig.ssl);
 } else {
   // Local database configuration using remote Tembo.io database
   dbConfig = {
@@ -32,10 +32,25 @@ if (process.env.DATABASE_URL) {
       rejectUnauthorized: false
     }
   };
+  console.log('Using local database configuration with SSL enabled');
 }
 
 // Create a PostgreSQL connection pool
 const pool = new Pool(dbConfig);
+
+// Test database connection with detailed error logging
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('Database connection error:', err.stack);
+    console.error('Database connection details (without password):', {
+      host: dbConfig.host || 'from connection string',
+      database: dbConfig.database || 'from connection string',
+      ssl: !!dbConfig.ssl
+    });
+  } else {
+    console.log('Database connected successfully:', res.rows[0]);
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -46,15 +61,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Health check endpoint for deployment platforms
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
-});
-
-// Test database connection
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('Database connection error:', err.stack);
-  } else {
-    console.log('Database connected:', res.rows[0]);
-  }
 });
 
 // API Routes
@@ -190,6 +196,22 @@ app.post('/api/execute-query', async (req, res) => {
   
   try {
     console.log('Executing query:', query);
+    
+    // Test the connection first
+    try {
+      await pool.query('SELECT 1');
+      console.log('Database connection test successful');
+    } catch (connErr) {
+      console.error('Database connection test failed:', connErr.message);
+      // If connection test fails, return a specific error
+      return res.status(500).json({
+        success: false,
+        error: 'Database connection error',
+        message: 'Could not connect to the database. Please check server logs for details.'
+      });
+    }
+    
+    // Execute the actual query
     const result = await pool.query(query);
     console.log('Query result:', { rowCount: result.rowCount, fields: result.fields.map(f => f.name) });
     
@@ -206,10 +228,23 @@ app.post('/api/execute-query', async (req, res) => {
     console.error('Error executing custom query:', err);
     
     // Check for SSL certificate errors
-    if (err.message && (err.message.includes('self-signed certificate') || err.message.includes('certificate'))) {
+    if (err.message && (err.message.includes('self-signed certificate') || 
+                        err.message.includes('certificate') || 
+                        err.message.includes('SSL') || 
+                        err.message.includes('EOF'))) {
       console.error('SSL Certificate Error:', err.message);
-      console.error('This is likely due to a self-signed certificate in the connection to the database.');
-      console.error('Ensure the SSL configuration is correct in the database connection settings.');
+      console.error('This is likely due to an SSL certificate issue in the connection to the database.');
+      console.error('Database connection details (without password):', {
+        host: dbConfig.host || 'from connection string',
+        database: dbConfig.database || 'from connection string',
+        ssl: !!dbConfig.ssl
+      });
+      
+      return res.status(500).json({ 
+        success: false,
+        error: 'Database SSL connection error',
+        message: 'Could not establish a secure connection to the database. Please contact support.'
+      });
     }
     
     res.status(500).json({ 
