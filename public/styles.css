@@ -38,8 +38,45 @@ canvas {
     max-width: 100%;
 }
 
+/* Footer styling - enhanced */
 footer {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px 0;
+    margin-top: 40px;
+    width: 100%;
+    display: block;
+    position: relative;
+    background-color: #343a40;
+}
+
+footer h5 {
+    color: #ffffff;
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+footer p {
+    color: #adb5bd;
+    margin-bottom: 8px;
+}
+
+footer .text-center {
+    text-align: center !important;
+}
+
+footer .text-md-end {
+    text-align: right !important;
+}
+
+footer em {
+    font-style: italic;
+    color: #17a2b8;
+}
+
+/* Special emphasis for professor's name */
+.professor-highlight {
+    color: #ffc107;
+    font-weight: 600;
 }
 
 /* Responsive adjustments */
