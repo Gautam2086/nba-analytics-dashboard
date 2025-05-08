@@ -77,33 +77,98 @@ This project implements advanced database concepts including:
 
 Try these example queries in the dashboard's SQL interface:
 
+### Team Roster and Player Information
+
 ```sql
--- Player performance by team
+-- Dallas Mavericks roster with jersey numbers and positions
 SELECT p.full_name, t.full_name AS team_name, cpi.jersey, cpi.position
 FROM nba.player p
 JOIN nba.common_player_info cpi ON p.player_id = cpi.person_id
 JOIN nba.team t ON cpi.team_id = t.team_id
 WHERE t.full_name = 'Dallas Mavericks'
 ORDER BY p.full_name;
+```
 
--- Team win percentage using window functions
-WITH team_games AS (
-  SELECT
-    t.full_name AS team,
-    COUNT(*) AS games,
-    SUM(CASE WHEN g.wl_home = 'W' THEN 1 ELSE 0 END) AS wins
-  FROM nba.game g
-  JOIN nba.team t ON g.team_id_home = t.team_id
-  GROUP BY t.full_name
-)
+### Team Win Percentages (Simplified)
+
+```sql
+-- Team win percentages - optimized query
 SELECT 
-  team,
-  games,
-  wins,
-  ROUND((wins::decimal / games) * 100, 1) AS win_percentage,
-  RANK() OVER (ORDER BY (wins::decimal / games) DESC) AS rank
-FROM team_games
+  t.full_name AS team,
+  COUNT(g.game_id) AS games,
+  SUM(CASE WHEN g.wl_home = 'W' THEN 1 ELSE 0 END) AS wins,
+  ROUND((SUM(CASE WHEN g.wl_home = 'W' THEN 1 ELSE 0 END)::decimal / COUNT(g.game_id)) * 100, 1) AS win_percentage
+FROM nba.game g
+JOIN nba.team t ON g.team_id_home = t.team_id
+GROUP BY t.full_name
 ORDER BY win_percentage DESC;
+```
+
+### Player Draft Analysis
+
+```sql
+-- Basic player information with physical attributes
+SELECT 
+  p.full_name,
+  p.player_id,
+  t.full_name AS team_name,
+  cpi.jersey, 
+  cpi.position,
+  cpi.height,
+  cpi.weight,
+  cpi.country
+FROM nba.player p
+JOIN nba.common_player_info cpi ON p.player_id = cpi.person_id
+JOIN nba.team t ON cpi.team_id = t.team_id
+ORDER BY p.full_name
+LIMIT 20;
+```
+
+### Game Points Analysis
+
+```sql
+-- Game points analysis with margin of victory
+SELECT 
+  g.game_date,
+  th.full_name AS home_team,
+  tv.full_name AS visitor_team,
+  g.pts_home,
+  g.pts_away,
+  g.pts_home - g.pts_away AS point_differential,
+  CASE WHEN g.pts_home > g.pts_away THEN th.full_name ELSE tv.full_name END AS winner
+FROM nba.game g
+JOIN nba.team th ON g.team_id_home = th.team_id
+JOIN nba.team tv ON g.team_id_away = tv.team_id
+ORDER BY g.game_date DESC
+LIMIT 25;
+```
+
+### Exploring Available Player Information
+
+```sql
+-- Check available columns in player information table
+SELECT *
+FROM nba.common_player_info
+LIMIT 5;
+```
+```
+
+### Luka Doncic Performance Analysis
+
+```sql
+-- Luka Doncic performance analysis with advanced metrics
+SELECT 
+  p.full_name,
+  t.full_name AS team_name,
+  cpi.jersey,
+  cpi.position,
+  cpi.height,
+  cpi.weight,
+  cpi.country
+FROM nba.player p
+JOIN nba.common_player_info cpi ON p.player_id = cpi.person_id
+JOIN nba.team t ON cpi.team_id = t.team_id
+WHERE p.full_name LIKE '%Doncic%';
 ```
 
 ## 📈 Performance Metrics
