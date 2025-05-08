@@ -98,45 +98,17 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Serve index.html for all routes to support client-side routing
 app.get('*', (req, res, next) => {
   // Skip API routes
-  if (req.path.startsWith('/api/')) {
+
+  if (req.url.startsWith('/api/')) {
     return next();
   }
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Health check endpoint for deployment platforms
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
-
-// Test database connection
-async function testDatabaseConnection() {
-  try {
-    const client = await pool.connect();
-    try {
-      const result = await client.query('SELECT NOW()');
-      console.log('Database connected successfully:', result.rows[0]);
-      return true;
-    } finally {
-      client.release();
-    }
-  } catch (err) {
-    console.error('Database connection error:', err.stack);
-    
-    if (err.message && (
-      err.message.includes('self-signed certificate') || 
-      err.message.includes('certificate') || 
-      err.message.includes('SSL') || 
-      err.message.includes('EOF')
-    )) {
-      console.error('SSL Certificate Error. Please check your DATABASE_URL configuration.');
-      console.error('If using render.com, try setting the DATABASE_URL with sslmode=no-verify');
-      console.error('Example: postgres://user:password@host:port/database?sslmode=no-verify');
-    }
-    
-    return false;
-  }
-}
 
 // API Routes
 
@@ -252,38 +224,49 @@ app.get('/api/players/top-scorers', async (req, res) => {
 
 // Execute custom SQL query
 app.post('/api/execute-query', async (req, res) => {
+  console.log('API endpoint hit: /api/execute-query');
+  console.log('Request body:', req.body);
+  
   const { query } = req.body;
   
   // Simple validation
   if (!query) {
+    console.log('Error: Query is required');
     return res.status(400).json({ error: 'Query is required' });
   }
   
   // For security, restrict to only SELECT queries
   if (!query.trim().toLowerCase().startsWith('select')) {
+    console.log('Error: Only SELECT queries are allowed');
     return res.status(403).json({ error: 'Only SELECT queries are allowed' });
   }
   
-  let client;
   try {
     console.log('Executing query:', query);
     
-    // Get a client from the pool with a timeout
+    // Test the connection first
     try {
-      client = await pool.connect();
+      await pool.query('SELECT 1');
+      console.log('Database connection test successful');
     } catch (connErr) {
-      console.error('Failed to get database client:', connErr.message);
+      console.error('Database connection test failed:', connErr.message);
+      // If connection test fails, return a specific error
       return res.status(500).json({
         error: 'Database connection error',
-        message: 'Could not connect to the database. Please try again later.',
+        message: 'Could not connect to the database. Please check server logs for details.',
         success: false
       });
     }
     
-    // Execute the query with a timeout
+    // Get a client from the pool
+    let client;
     let result;
+    
     try {
-      // Set a query timeout of 10 seconds
+      client = await pool.connect();
+      console.log('Acquired database client from pool');
+      
+      // Execute query with a timeout
       result = await Promise.race([
         client.query(query),
         new Promise((_, reject) => 
@@ -385,6 +368,18 @@ app.get('/api/games/comparison', async (req, res) => {
     res.status(500).json({ error: 'Error fetching game comparison' });
   }
 });
+
+// Function to test database connection
+async function testDatabaseConnection() {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    console.log('Database connection test successful:', result.rows[0]);
+    return true;
+  } catch (err) {
+    console.error('Database connection test failed:', err.message);
+    return false;
+  }
+}
 
 // Start the server
 const server = app.listen(port, async () => {
