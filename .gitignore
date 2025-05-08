@@ -27,4 +27,12 @@ logs
 
 # OS specific
 .DS_Store
-Thumbs.db 
+Thumbs.db GTA_APPLICATION_EMAIL.md
+
+# Project-specific files to ignore
+GTA_APPLICATION_GUIDE.md
+GTA_*.md
+app.js
+index.html
+query-app.js
+styles.css
